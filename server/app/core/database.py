@@ -23,15 +23,30 @@ class Base(DeclarativeBase):
 # Check if sqlite is being used (for tests) or postgresql
 engine_kwargs = {"echo": False}
 if "sqlite" in settings.DATABASE_URL:
-    from sqlalchemy.pool import StaticPool
     engine_kwargs["connect_args"] = {"check_same_thread": False}
-    engine_kwargs["poolclass"] = StaticPool
+    if ":memory:" in settings.DATABASE_URL:
+        from sqlalchemy.pool import StaticPool
+        engine_kwargs["poolclass"] = StaticPool
 else:
     engine_kwargs["pool_pre_ping"] = True
     engine_kwargs["pool_size"] = 10
     engine_kwargs["max_overflow"] = 20
 
 engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
+
+if "sqlite" in settings.DATABASE_URL:
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        try:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+            cursor.execute("PRAGMA busy_timeout=5000;")
+            cursor.close()
+        except Exception:
+            pass
 
 async_session_factory = async_sessionmaker(
     bind=engine,
