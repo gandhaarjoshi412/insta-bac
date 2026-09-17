@@ -17,22 +17,22 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://noinsta_user:noinsta_password@localhost:5432/noinsta"
     )
 
-    # JWT / Security
+    # JWT / Security (Indefinite lifespan / no token expiry timeout)
     JWT_SECRET: str = Field(
         default="noinsta_super_secret_jwt_key_change_in_production_min_32_bytes"
     )
     JWT_ALGORITHM: str = Field(default="HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
-    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=30)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=52560000)  # ~100 years (no timeout)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=36500)  # ~100 years (no timeout)
 
-    # Pairing
-    PAIRING_CODE_EXPIRE_MINUTES: int = Field(default=10)
-    PAIRING_CODE_MAX_ATTEMPTS: int = Field(default=5)
+    # Pairing (Indefinite lifespan / no pairing code expiration timeout)
+    PAIRING_CODE_EXPIRE_MINUTES: int = Field(default=52560000)  # ~100 years (no timeout)
+    PAIRING_CODE_MAX_ATTEMPTS: int = Field(default=500)
 
-    # Cooldown & Presence
-    INSTAGRAM_COOLDOWN_SECONDS: int = Field(default=300)
+    # Cooldown & Presence (Zero cooldown timeout, no laptop offline timeout)
+    INSTAGRAM_COOLDOWN_SECONDS: int = Field(default=0)  # 0s cooldown (triggers immediately every time)
     LAPTOP_HEARTBEAT_SECONDS: int = Field(default=120)
-    LAPTOP_OFFLINE_SECONDS: int = Field(default=900)
+    LAPTOP_OFFLINE_SECONDS: int = Field(default=0)  # 0s = disabled / no offline timeout
 
     # App Environment & Security
     APP_ENV: str = Field(default="development")

@@ -51,13 +51,14 @@ class PresenceService:
         if not ws_manager.is_connected(device.id):
             return False
 
-        cutoff = utcnow() - timedelta(seconds=settings.LAPTOP_OFFLINE_SECONDS)
-        # Handle timezone-aware/naive comparison cleanly
-        last_seen = device.last_seen_at
-        if last_seen.tzinfo is None:
-            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        if settings.LAPTOP_OFFLINE_SECONDS > 0:
+            cutoff = utcnow() - timedelta(seconds=settings.LAPTOP_OFFLINE_SECONDS)
+            last_seen = device.last_seen_at
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=timezone.utc)
+            return last_seen >= cutoff
 
-        return last_seen >= cutoff
+        return True
 
     @staticmethod
     async def get_online_laptops_for_user(

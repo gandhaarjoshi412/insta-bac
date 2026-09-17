@@ -104,14 +104,13 @@ class EventService:
             await session.refresh(event)
             return event, False, 0, "Instagram close event recorded."
 
-        # 5. Cooldown evaluation with row-level locking on user to prevent race conditions
+        # 5. Cooldown evaluation with row-level locking on user
         user_stmt = select(User).where(User.id == device.user_id).with_for_update()
         user = (await session.execute(user_stmt)).scalar_one()
 
-        cooldown_duration = timedelta(seconds=settings.INSTAGRAM_COOLDOWN_SECONDS)
         is_cooldown_active = False
-
-        if user.last_intervention_at is not None:
+        if settings.INSTAGRAM_COOLDOWN_SECONDS > 0 and user.last_intervention_at is not None:
+            cooldown_duration = timedelta(seconds=settings.INSTAGRAM_COOLDOWN_SECONDS)
             last_interv = user.last_intervention_at
             if last_interv.tzinfo is None:
                 last_interv = last_interv.replace(tzinfo=timezone.utc)
@@ -124,9 +123,9 @@ class EventService:
         if is_cooldown_active:
             await session.commit()
             await session.refresh(event)
-            return event, False, 0, "Event recorded; intervention suppressed due to 5-minute cooldown."
+            return event, False, 0, "Event recorded; intervention suppressed due to cooldown."
 
-        # Cooldown expired -> update last_intervention_at and authorize intervention
+        # Cooldown passed/disabled -> update last_intervention_at and authorize intervention
         user.last_intervention_at = event_time
         await session.commit()
         await session.refresh(event)

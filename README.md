@@ -65,28 +65,33 @@ The application runs seamlessly in the background and places an indicator icon i
 
 ## 4. Pairing the Device
 
-On first launch, if the laptop has not yet been paired, the **NoInsta Device Pairing** dialog will automatically appear:
+On first launch, if the laptop has not yet been paired, the **NoInsta Device Pairing** dialog will automatically appear and fetch a new pairing code from the server:
 
 ```text
-┌──────────────────────────────────────────┐
-│                 NOINSTA                  │
-│   Pair this laptop to your account       │
-│                                          │
-│ Enter 6-character Pairing Code:          │
-│ [ A7K9Q2                               ] │
-│                                          │
-│ Device Name:                             │
-│ [ My-Fedora-Laptop                     ] │
-│                                          │
-│          [Cancel]   [Pair Device]        │
-└──────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                        NOINSTA                         │
+│                   Device Pairing                       │
+│                                                        │
+│  Laptop Name: [ Gandhaar-Fedora-Laptop               ] │
+│                                                        │
+│        Enter this code in your NoInsta Android app:    │
+│                   ┌──────────────┐                     │
+│                   │  A 7 K 9 Q 2 │                     │
+│                   └──────────────┘                     │
+│                     [Copy Code]                        │
+│                                                        │
+│  Status: ⏳ Waiting for Android phone to connect...    │
+│                                                        │
+│             [New Code]            [Done]               │
+└────────────────────────────────────────────────────────┘
 ```
 
-1. Open your NoInsta Android app and tap **Pair New Laptop** to generate a one-time 6-character pairing code.
-2. Enter the code into the laptop pairing prompt and click **Pair Device**.
-3. Upon success, unique device credentials (`device_id`, `access_token`, `refresh_token`) are securely stored via your operating system's credential vault (`keyring` / Windows Credential Manager / Secret Service).
-4. The one-time pairing code is immediately discarded and never stored.
-5. To re-pair or change accounts at any time, right-click the system tray icon and select **Pair Device...** or run `python main.py --pair`.
+1. Launch NoInsta on your laptop (`python main.py` or `python main.py --pair`). The app contacts the server and displays a 6-character pairing code (e.g. `A7K9Q2`).
+2. Open your **NoInsta Android app** and enter this 6-character pairing code into the **Pairing Code** field.
+3. Tap **Pair Device** on your phone.
+4. The server links both the laptop and phone records under your account, and the laptop dialog will automatically update: `✅ Paired successfully with <Android Device>!`.
+5. Device credentials (`device_id`, `access_token`, `refresh_token`) are securely stored in your laptop's credential vault (`keyring` / Secret Service / Windows Credential Manager).
+6. To re-pair or generate a new code at any time, right-click the system tray icon and select **Pair Device...** or run `python main.py --pair`.
 
 ---
 

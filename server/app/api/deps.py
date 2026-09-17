@@ -96,3 +96,20 @@ async def get_current_device(
         )
 
     return device
+
+
+security_bearer_optional = HTTPBearer(auto_error=False)
+
+
+async def get_optional_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer_optional),
+    session: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """Extract authenticated User if Bearer token present and valid, otherwise return None."""
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        return await get_current_user(credentials=credentials, session=session)
+    except HTTPException:
+        return None
+

@@ -76,7 +76,10 @@ class NetworkWorker(QThread):
         try:
             self._loop.run_until_complete(self._main_network_task())
         except Exception as exc:
-            logger.error("Error in network worker event loop: %s", exc, exc_info=True)
+            if self._is_running:
+                logger.error("Error in network worker event loop: %s", exc, exc_info=True)
+            else:
+                logger.debug("Network worker event loop stopped gracefully: %s", exc)
         finally:
             try:
                 # Cancel all remaining tasks in the loop
@@ -121,6 +124,7 @@ class NetworkWorker(QThread):
                 return
 
         # If refresh failed or not available, request re-pairing
+        self.credential_manager.clear_credentials()
         self.pairing_required.emit()
 
     def _on_connection_change(self, is_connected: bool) -> None:
@@ -203,8 +207,43 @@ class ConnectionManager(QObject):
         self._worker.status_message.connect(self.status_message.emit)
         self._worker.pairing_required.connect(self.pairing_required.emit)
 
+        # Start background worker thread
         self._worker.start()
-        logger.info("ConnectionManager started.")
+
+    @property
+    def is_running(self) -> bool:
+        """Check if background worker thread is currently active."""
+        return self._worker is not None and self._worker.isRunning()
+
+    def request_pairing_code(
+        self, device_name: Optional[str] = None
+    ) -> Tuple[bool, Optional[str], str]:
+        """Request the server to generate a 6-character pairing code for this laptop.
+        
+        Saves issued credentials, connects background network worker,
+        and returns (success, pairing_code, message).
+        """
+        success, gen_resp, credentials, message = self.api_client.request_pairing_code(
+            device_name=device_name
+        )
+        if success and gen_resp and credentials:
+            self.credential_manager.save_credentials(credentials)
+            self.status_message.emit(f"Pairing code generated: {gen_resp.pairing_code}")
+            if self._worker and self._worker.isRunning():
+                self._worker.trigger_reconnect()
+            else:
+                self.start()
+            return True, gen_resp.pairing_code, message
+        return False, None, message
+
+    def check_pairing_status(
+        self, pairing_code: str
+    ) -> Tuple[bool, bool, Optional[str], str]:
+        """Check if Android phone has claimed the pairing code."""
+        success, is_claimed, claimed_name, msg = self.api_client.check_pairing_status(pairing_code)
+        if success and is_claimed:
+            self.credential_manager.mark_as_paired()
+        return success, is_claimed, claimed_name, msg
 
     def pair_device(
         self, pairing_code: str, device_name: Optional[str] = None

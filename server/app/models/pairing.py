@@ -61,13 +61,8 @@ class PairingCode(Base):
 
     @property
     def is_valid(self) -> bool:
-        """Check if code has not been used, not expired, and attempt limit not exceeded."""
-        now = datetime.now(timezone.utc)
-        exp = self.expires_at
-        if exp.tzinfo is None:
-            exp = exp.replace(tzinfo=timezone.utc)
+        """Check if code has not been used and attempt limit not exceeded (no expiration timeout)."""
         return (
             self.used_at is None
-            and exp > now
             and self.attempt_count < settings.PAIRING_CODE_MAX_ATTEMPTS
         )

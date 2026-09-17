@@ -58,19 +58,19 @@ class NoInstaApplication(QObject):
         self.connection_manager.status_message.connect(self._on_status_message)
         self.connection_manager.pairing_required.connect(self._on_pairing_required)
 
-    def start(self) -> None:
+    def start(self, force_pair: bool = False) -> None:
         """Begin application execution."""
-        creds = self.credential_manager.get_credentials()
-        if creds:
-            device_label = creds.device_name or creds.device_id
+        if not force_pair and self.credential_manager.is_paired():
+            creds = self.credential_manager.get_credentials()
+            device_label = creds.device_name or creds.device_id if creds else "Laptop"
             self.tray.set_device_info(device_label)
-            logger.info("Starting with existing device credentials (%s)", creds.device_id)
+            logger.info("Starting with existing device credentials (%s)", creds.device_id if creds else "unknown")
             self.connection_manager.start()
         else:
-            logger.info("No credentials found. Prompting pairing dialog...")
+            logger.info("Device is not paired yet or pairing was requested. Opening pairing dialog...")
             self.tray.set_device_info("Not Paired")
-            # Present pairing dialog on first run
-            QTimer.singleShot(200, self.show_pairing_dialog)
+            # Present pairing dialog immediately on launch
+            QTimer.singleShot(50, self.show_pairing_dialog)
 
     def show_pairing_dialog(self) -> None:
         """Display the pairing modal dialog."""
@@ -79,12 +79,18 @@ class NoInstaApplication(QObject):
             self._pairing_dialog.activateWindow()
             return
 
+        was_paired_before = self.credential_manager.is_paired()
+
         self._pairing_dialog = PairingDialog(
+            request_code_callback=self.connection_manager.request_pairing_code,
+            check_status_callback=self.connection_manager.check_pairing_status,
             pair_callback=self.connection_manager.pair_device,
             default_server_url=self.config.server_url,
         )
+
         result = self._pairing_dialog.exec()
         if result == PairingDialog.DialogCode.Accepted:
+            self.credential_manager.mark_as_paired()
             creds = self.credential_manager.get_credentials()
             if creds:
                 self.tray.set_device_info(creds.device_name or creds.device_id)
@@ -92,6 +98,12 @@ class NoInstaApplication(QObject):
                     "NoInsta Paired",
                     f"Paired successfully as {creds.device_name or creds.device_id}.",
                 )
+                if not self.connection_manager.is_running:
+                    self.connection_manager.start()
+        else:
+            if not was_paired_before:
+                logger.info("Pairing cancelled or closed before completion. Exiting.")
+                self.shutdown()
         self._pairing_dialog = None
 
     def trigger_test_intervention(self) -> None:
@@ -169,7 +181,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pair",
         action="store_true",
-        help="Launch directly into pairing setup dialog.",
+        help="Launch directly into pairing setup dialog (generates a fresh code even if already paired).",
+    )
+    parser.add_argument(
+        "--reset",
+        "--unpair",
+        dest="reset",
+        action="store_true",
+        help="Clear stored pairing credentials and reset device registration.",
     )
     parser.add_argument(
         "--enable-autostart",
@@ -192,6 +211,13 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     """Application entry point."""
     args = parse_args()
+
+    # Handle reset/unpair CLI action
+    if args.reset:
+        mgr = CredentialManager()
+        mgr.clear_credentials()
+        print("Stored pairing credentials successfully cleared.")
+        return 0
 
     # Handle autostart CLI actions if requested
     if args.enable_autostart:
@@ -235,13 +261,11 @@ def main() -> int:
     signal.signal(signal.SIGINT, lambda sig, frame: client_app.shutdown())
     signal.signal(signal.SIGTERM, lambda sig, frame: client_app.shutdown())
 
-    # Start client
-    client_app.start()
+    # Start client (opens pairing dialog if not paired or --pair specified)
+    client_app.start(force_pair=args.pair)
 
     if args.test:
         QTimer.singleShot(300, client_app.trigger_test_intervention)
-    elif args.pair:
-        QTimer.singleShot(300, client_app.show_pairing_dialog)
 
     return app.exec()
 

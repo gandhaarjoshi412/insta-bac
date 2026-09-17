@@ -34,6 +34,8 @@ class InboundMessageType(str, Enum):
     PING = "ping"
     HEARTBEAT_ACK = "heartbeat_ack"
     AUTH_ERROR = "auth_error"
+    ERROR = "error"
+    AUTHENTICATED = "authenticated"
     UNKNOWN = "unknown"
 
 
@@ -66,6 +68,19 @@ class AuthErrorMessage(BaseInboundMessage):
     reason: Optional[str] = None
 
 
+class ErrorMessage(BaseInboundMessage):
+    """Notification of server error or auth failure."""
+    type: Literal["error"] = "error"
+    detail: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class AuthenticatedMessage(BaseInboundMessage):
+    """Notification of successful server authentication."""
+    type: Literal["authenticated"] = "authenticated"
+    detail: Optional[str] = None
+
+
 def parse_inbound_message(raw_data: Union[str, bytes]) -> Optional[BaseInboundMessage]:
     """Parse incoming WebSocket text payload into a validated message object.
     
@@ -96,6 +111,10 @@ def parse_inbound_message(raw_data: Union[str, bytes]) -> Optional[BaseInboundMe
             return HeartbeatAckMessage.model_validate(data)
         elif msg_type == InboundMessageType.AUTH_ERROR:
             return AuthErrorMessage.model_validate(data)
+        elif msg_type == InboundMessageType.ERROR:
+            return ErrorMessage.model_validate(data)
+        elif msg_type == InboundMessageType.AUTHENTICATED:
+            return AuthenticatedMessage.model_validate(data)
         else:
             # Safe forward-compatible warning without crashing
             logger.warning("Unknown or unsupported server message type: %s", msg_type)
@@ -171,6 +190,33 @@ class PairingResponse(BaseModel):
     refresh_token: Optional[str] = None
     user_id: Optional[str] = None
     message: Optional[str] = None
+
+
+class PairingGenerateRequest(BaseModel):
+    device_name: Optional[str] = None
+    platform: Optional[str] = None
+    device_type: Optional[str] = "LAPTOP"
+
+
+class PairingGenerateResponse(BaseModel):
+    pairing_code: str
+    expires_at: str
+    expires_in_seconds: int
+    device_id: str
+    access_token: str
+    refresh_token: str
+    user_id: str
+    message: Optional[str] = None
+
+
+class PairingStatusCheckResponse(BaseModel):
+    pairing_code: str
+    is_claimed: bool
+    claimed_device_name: Optional[str] = None
+    expires_at: Optional[str] = None
+    is_expired: bool = False
+    message: Optional[str] = None
+
 
 
 class DeviceCredentials(BaseModel):

@@ -49,6 +49,7 @@ def test_credential_storage_lifecycle(tmp_path: Path):
         user_id="user_101",
         device_name="Gandhaar Laptop",
         server_url="https://noinsta.platesight.in",
+        paired_at="2026-09-17T00:00:00Z",
     )
 
     assert manager.save_credentials(creds)

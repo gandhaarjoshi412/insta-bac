@@ -96,14 +96,12 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_exp": False},
         )
         if payload.get("token_type") != "access":
             logger.warning("Decoded token is not an access token.")
             return None
         return payload
-    except jwt.ExpiredSignatureError:
-        logger.debug("Access token expired.")
-        return None
     except jwt.InvalidTokenError as exc:
         logger.warning("Invalid access token: %s", exc)
         return None

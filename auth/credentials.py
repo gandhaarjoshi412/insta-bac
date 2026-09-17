@@ -18,8 +18,20 @@ class CredentialManager:
         self._cached_credentials: Optional[DeviceCredentials] = None
 
     def is_paired(self) -> bool:
-        """Check whether valid device credentials are currently stored."""
-        return self.get_credentials() is not None
+        """Check whether valid device credentials are currently stored and verified paired."""
+        creds = self.get_credentials()
+        return creds is not None and creds.paired_at is not None
+
+    def mark_as_paired(self) -> bool:
+        """Mark stored credentials as paired with timestamp."""
+        creds = self.get_credentials()
+        if not creds:
+            return False
+        from datetime import datetime, timezone
+        updated = creds.model_copy(
+            update={"paired_at": datetime.now(timezone.utc).isoformat()}
+        )
+        return self.save_credentials(updated)
 
     def get_credentials(self) -> Optional[DeviceCredentials]:
         """Load and return current device credentials, if available."""

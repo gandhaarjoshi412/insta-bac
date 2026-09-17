@@ -14,7 +14,9 @@ from websockets.exceptions import ConnectionClosed, WebSocketException
 from models.config_models import AppConfig
 from models.messages import (
     AuthenticateMessage,
+    AuthenticatedMessage,
     AuthErrorMessage,
+    ErrorMessage,
     BaseInboundMessage,
     BaseOutboundMessage,
     DeviceCredentials,
@@ -134,8 +136,8 @@ class WebSocketClient:
                 connect_kwargs = {
                     "ssl": ssl_context if ws_url.startswith("wss://") else None,
                     "ping_interval": 30,
-                    "ping_timeout": 15,
-                    "close_timeout": 5,
+                    "ping_timeout": None,
+                    "close_timeout": None,
                 }
                 # Support websockets >=14.0 (additional_headers) and <14.0 (extra_headers)
                 try:
@@ -185,8 +187,21 @@ class WebSocketClient:
                         except asyncio.CancelledError:
                             pass
 
+                    # Retrieve exceptions from completed tasks to avoid 'Task exception was never retrieved'
+                    for task in done:
+                        if not task.cancelled():
+                            exc = task.exception()
+                            if isinstance(exc, ConnectionClosed) and exc.code == 1008:
+                                logger.warning("Server rejected authentication (code 1008). Prompting pairing.")
+                                self.on_auth_error("Authentication rejected by server (code 1008)")
+                                break
+
             except ConnectionClosed as exc:
                 logger.warning("WebSocket closed by server (code=%s, reason=%s)", exc.code, exc.reason)
+                if exc.code == 1008:
+                    logger.warning("Server rejected authentication (code 1008). Prompting pairing.")
+                    self.on_auth_error("Authentication rejected by server (code 1008)")
+                    break
             except WebSocketException as exc:
                 logger.warning("WebSocket error encountered: %s", exc)
             except OSError as exc:
@@ -270,9 +285,13 @@ class WebSocketClient:
                 elif isinstance(parsed, HeartbeatAckMessage):
                     logger.debug("Received heartbeat ack from server")
 
-                elif isinstance(parsed, AuthErrorMessage):
-                    logger.warning("Server authentication error: %s", parsed.reason)
-                    self.on_auth_error(parsed.reason or "Authentication failed")
+                elif isinstance(parsed, AuthenticatedMessage):
+                    logger.info("Server confirmed authentication: %s", parsed.detail or "OK")
+
+                elif isinstance(parsed, (AuthErrorMessage, ErrorMessage)):
+                    reason = getattr(parsed, "detail", None) or getattr(parsed, "reason", None) or "Authentication error"
+                    logger.warning("Server error / authentication rejected: %s", reason)
+                    self.on_auth_error(reason)
 
             except Exception as exc:
                 logger.error("Error processing inbound message: %s", exc)

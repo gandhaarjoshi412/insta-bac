@@ -60,6 +60,67 @@ def test_api_client_pairing_success():
     assert creds.refresh_token == "mock_refresh_token"
 
 
+def test_api_client_request_pairing_code_success():
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == APIEndpoints.GENERATE_PAIRING:
+            return httpx.Response(
+                status_code=201,
+                json={
+                    "pairing_code": "X7K9Q2",
+                    "expires_at": "2026-09-17T12:00:00Z",
+                    "expires_in_seconds": 600,
+                    "device_id": "dev_laptop_101",
+                    "access_token": "mock_laptop_token",
+                    "refresh_token": "mock_laptop_refresh",
+                    "user_id": "usr_laptop_owner",
+                },
+            )
+        return httpx.Response(status_code=404)
+
+    client = APIClient(base_url="https://test.noinsta.internal")
+    client._get_client = lambda: httpx.Client(
+        transport=httpx.MockTransport(mock_handler),
+        base_url=client.base_url,
+    )
+
+    success, gen_resp, creds, msg = client.request_pairing_code("MyFedora")
+    assert success is True
+    assert gen_resp is not None
+    assert gen_resp.pairing_code == "X7K9Q2"
+    assert creds is not None
+    assert creds.device_id == "dev_laptop_101"
+    assert creds.access_token == "mock_laptop_token"
+    assert creds.user_id == "usr_laptop_owner"
+
+
+def test_api_client_check_pairing_status():
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/pairing/status/X7K9Q2":
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "pairing_code": "X7K9Q2",
+                    "is_claimed": True,
+                    "claimed_device_name": "Pixel 7",
+                    "is_expired": False,
+                    "message": "Code claimed.",
+                },
+            )
+        return httpx.Response(status_code=404)
+
+    client = APIClient(base_url="https://test.noinsta.internal")
+    client._get_client = lambda: httpx.Client(
+        transport=httpx.MockTransport(mock_handler),
+        base_url=client.base_url,
+    )
+
+    success, is_claimed, device_name, msg = client.check_pairing_status("X7K9Q2")
+    assert success is True
+    assert is_claimed is True
+    assert device_name == "Pixel 7"
+
+
+
 def test_api_client_pairing_invalid_code():
     def mock_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(status_code=400, json={"detail": "Expired pairing code"})
