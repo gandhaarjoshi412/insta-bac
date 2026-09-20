@@ -284,3 +284,20 @@ class ConnectionManager(QObject):
             self._worker.wait(3000)
             self._worker = None
         logger.info("ConnectionManager stopped.")
+
+    def fetch_analytics(self) -> Tuple[bool, Optional[dict], str]:
+        """Fetch analytics report from the server using current credentials."""
+        creds = self.credential_manager.get_credentials()
+        if not creds or not creds.access_token:
+            return False, None, "Device not paired or missing access credentials."
+
+        success, data, msg = self.api_client.get_analytics(creds.access_token)
+        if not success and "Unauthorized" in msg and creds.refresh_token:
+            logger.info("Access token expired while fetching analytics, attempting refresh...")
+            refreshed, new_access, new_refresh = self.api_client.refresh_access_token(
+                creds.device_id, creds.refresh_token
+            )
+            if refreshed and new_access:
+                self.credential_manager.update_tokens(new_access, new_refresh or creds.refresh_token)
+                return self.api_client.get_analytics(new_access)
+        return success, data, msg

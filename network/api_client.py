@@ -28,6 +28,7 @@ class APIEndpoints:
     PAIRING_STATUS = "/api/v1/pairing/status/{pairing_code}"
     REFRESH_TOKEN = "/api/v1/auth/refresh"
     DEVICE_STATUS = "/api/v1/devices/{device_id}/status"
+    ANALYTICS = "/api/v1/analytics"
 
 
 
@@ -233,3 +234,25 @@ class APIClient:
         except Exception as exc:
             logger.error("Error while refreshing token: %s", exc)
             return False, None, None
+
+    def get_analytics(self, access_token: str) -> Tuple[bool, Optional[dict], str]:
+        """Fetch analytics summary and event history from server.
+        
+        Returns: (success: bool, data: Optional[dict], error_message: str)
+        """
+        if not access_token:
+            return False, None, "No access token provided."
+        try:
+            with self._get_client() as client:
+                resp = client.get(
+                    APIEndpoints.ANALYTICS,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if resp.status_code == 200:
+                    return True, resp.json(), "OK"
+                elif resp.status_code == 401:
+                    return False, None, "Unauthorized: token expired or invalid."
+                return False, None, f"Server responded with HTTP {resp.status_code}"
+        except Exception as exc:
+            logger.error("Error fetching analytics: %s", exc)
+            return False, None, str(exc)

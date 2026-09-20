@@ -16,6 +16,7 @@ from models.config_models import AppConfig
 from models.messages import ConnectionState
 from network.connection_manager import ConnectionManager
 from startup.startup_manager import StartupManager
+from ui.analytics_window import AnalyticsWindow
 from ui.intervention_window import InterventionWindow
 from ui.pairing_dialog import PairingDialog
 from ui.tray import SystemTray
@@ -40,6 +41,7 @@ class NoInstaApplication(QObject):
 
         self._active_intervention: Optional[InterventionWindow] = None
         self._pairing_dialog: Optional[PairingDialog] = None
+        self._analytics_window: Optional[AnalyticsWindow] = None
 
         # Set up System Tray
         self.tray = SystemTray(
@@ -47,6 +49,7 @@ class NoInstaApplication(QObject):
             on_reconnect=self.connection_manager.reconnect,
             on_pair=self.show_pairing_dialog,
             on_quit=self.shutdown,
+            on_view_analytics=self.show_analytics_window,
         )
 
         self._connect_signals()
@@ -150,19 +153,36 @@ class NoInstaApplication(QObject):
         self.tray.set_device_info("Not Paired")
         self.show_pairing_dialog()
 
+    def show_analytics_window(self) -> None:
+        """Display the analytics and telemetry window."""
+        if self._analytics_window is None:
+            self._analytics_window = AnalyticsWindow(
+                fetch_analytics_callback=self.connection_manager.fetch_analytics,
+                server_url=self.config.server_url,
+            )
+        self._analytics_window.show()
+        self._analytics_window.raise_()
+        self._analytics_window.activateWindow()
+        self._analytics_window.refresh_data()
+
     def shutdown(self) -> None:
         """Gracefully shut down all components."""
         logger.info("Initiating application shutdown...")
 
-        # 1. Close active intervention and terminate media immediately
+        # 1. Close analytics window if open
+        if self._analytics_window:
+            self._analytics_window.close()
+            self._analytics_window = None
+
+        # 2. Close active intervention and terminate media immediately
         if self._active_intervention:
             self._active_intervention.dismiss()
             self._active_intervention = None
 
-        # 2. Stop network manager and background threads
+        # 3. Stop network manager and background threads
         self.connection_manager.stop()
 
-        # 3. Exit Qt
+        # 4. Exit Qt
         self.app.quit()
         logger.info("Application exited.")
 
@@ -204,6 +224,11 @@ def parse_args() -> argparse.Namespace:
         "--check-autostart",
         action="store_true",
         help="Check whether autostart is currently enabled.",
+    )
+    parser.add_argument(
+        "--analytics",
+        action="store_true",
+        help="Open the analytics and telemetry dashboard window.",
     )
     return parser.parse_args()
 
@@ -266,6 +291,9 @@ def main() -> int:
 
     if args.test:
         QTimer.singleShot(300, client_app.trigger_test_intervention)
+
+    if args.analytics:
+        QTimer.singleShot(250, client_app.show_analytics_window)
 
     return app.exec()
 

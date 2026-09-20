@@ -50,6 +50,7 @@ class SystemTray(QObject):
         on_reconnect: Callable[[], None],
         on_pair: Callable[[], None],
         on_quit: Callable[[], None],
+        on_view_analytics: Optional[Callable[[], None]] = None,
         parent: Optional[QObject] = None,
     ):
         super().__init__(parent)
@@ -57,6 +58,7 @@ class SystemTray(QObject):
         self.on_reconnect = on_reconnect
         self.on_pair = on_pair
         self.on_quit = on_quit
+        self.on_view_analytics = on_view_analytics
 
         self.tray_icon = QSystemTrayIcon(self)
         self._current_state = ConnectionState.DISCONNECTED
@@ -64,7 +66,14 @@ class SystemTray(QObject):
 
         self._init_menu()
         self.update_state(ConnectionState.DISCONNECTED.value)
+        if self.on_view_analytics:
+            self.tray_icon.activated.connect(self._on_tray_activated)
         self.tray_icon.show()
+
+    def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        if reason in (QSystemTrayIcon.ActivationReason.Trigger, QSystemTrayIcon.ActivationReason.DoubleClick):
+            if self.on_view_analytics:
+                self.on_view_analytics()
 
     def _init_menu(self) -> None:
         """Create tray context menu."""
@@ -83,6 +92,11 @@ class SystemTray(QObject):
         menu.addAction(self.device_action)
 
         menu.addSeparator()
+
+        if self.on_view_analytics:
+            analytics_action = QAction("📊 View Analytics & Telemetry", self)
+            analytics_action.triggered.connect(self.on_view_analytics)
+            menu.addAction(analytics_action)
 
         test_action = QAction("⚡ Test Intervention", self)
         test_action.triggered.connect(self.on_test_intervention)
