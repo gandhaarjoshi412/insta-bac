@@ -79,3 +79,29 @@ def test_analytics_window_initialization(qapp):
     assert win.daily_table.rowCount() == 1
     assert win.events_table.rowCount() == 1
     assert win.interventions_table.rowCount() == 1
+    assert win.cooldown_combo.count() >= 5
+
+
+def test_analytics_window_cooldown_selection(qapp):
+    updated_seconds = []
+
+    def mock_fetch():
+        return True, {"summary": {"cooldown_seconds": 300, "cooldown_remaining_seconds": 0}}, "OK"
+
+    def mock_update(sec):
+        updated_seconds.append(sec)
+        return True, {"cooldown_seconds": sec}, "OK"
+
+    win = AnalyticsWindow(fetch_analytics_callback=mock_fetch, update_cooldown_callback=mock_update)
+    if win._worker:
+        win._worker.wait(2000)
+    qapp.processEvents()
+
+    # Change to 10 minutes (600s)
+    idx = win.cooldown_combo.findData(600)
+    assert idx >= 0
+    win.cooldown_combo.setCurrentIndex(idx)
+    qapp.processEvents()
+    import time
+    time.sleep(0.1)
+    assert 600 in updated_seconds

@@ -109,8 +109,10 @@ class EventService:
         user = (await session.execute(user_stmt)).scalar_one()
 
         is_cooldown_active = False
-        if settings.INSTAGRAM_COOLDOWN_SECONDS > 0 and user.last_intervention_at is not None:
-            cooldown_duration = timedelta(seconds=settings.INSTAGRAM_COOLDOWN_SECONDS)
+        effective_cooldown = user.cooldown_seconds if user.cooldown_seconds is not None else settings.INSTAGRAM_COOLDOWN_SECONDS
+        remaining = 0
+        if effective_cooldown > 0 and user.last_intervention_at is not None:
+            cooldown_duration = timedelta(seconds=effective_cooldown)
             last_interv = user.last_intervention_at
             if last_interv.tzinfo is None:
                 last_interv = last_interv.replace(tzinfo=timezone.utc)
@@ -123,7 +125,7 @@ class EventService:
         if is_cooldown_active:
             await session.commit()
             await session.refresh(event)
-            return event, False, 0, "Event recorded; intervention suppressed due to cooldown."
+            return event, False, 0, f"Event recorded; intervention suppressed due to cooldown ({remaining}s remaining)."
 
         # Cooldown passed/disabled -> update last_intervention_at and authorize intervention
         user.last_intervention_at = event_time

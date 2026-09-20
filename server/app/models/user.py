@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 import uuid
 
-from sqlalchemy import DateTime, String, Text, Uuid
+from sqlalchemy import DateTime, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -38,6 +38,12 @@ class User(Base):
     )
     password_hash: Mapped[str] = mapped_column(
         Text,
+        nullable=False,
+    )
+    cooldown_seconds: Mapped[int] = mapped_column(
+        Integer,
+        default=300,
+        server_default="300",
         nullable=False,
     )
     last_intervention_at: Mapped[Optional[datetime]] = mapped_column(

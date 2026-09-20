@@ -7,6 +7,7 @@ from typing import Callable, Optional, Tuple
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -73,11 +74,13 @@ class AnalyticsWindow(QWidget):
     def __init__(
         self,
         fetch_analytics_callback: Callable[[], Tuple[bool, Optional[dict], str]],
+        update_cooldown_callback: Optional[Callable[[int], Tuple[bool, Optional[dict], str]]] = None,
         server_url: str = "https://noinsta.platesight.in",
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.fetch_analytics_callback = fetch_analytics_callback
+        self.update_cooldown_callback = update_cooldown_callback
         self.server_url = server_url
         self._worker: Optional[AnalyticsFetchWorker] = None
 
@@ -218,6 +221,57 @@ class AnalyticsWindow(QWidget):
 
         main_layout.addLayout(header_layout)
 
+        # Cooldown Configuration & Status Bar
+        cooldown_bar = QFrame()
+        cooldown_bar.setStyleSheet("""
+            QFrame {
+                background-color: #202024;
+                border: 1px solid #3F3F46;
+                border-radius: 8px;
+                padding: 4px 8px;
+            }
+            QComboBox {
+                background-color: #27272A;
+                color: #FFFFFF;
+                border: 1px solid #52525B;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                font-weight: 500;
+                min-width: 170px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #27272A;
+                color: #FFFFFF;
+                selection-background-color: #3B82F6;
+            }
+        """)
+        cd_layout = QHBoxLayout(cooldown_bar)
+        cd_layout.setContentsMargins(10, 6, 10, 6)
+
+        cd_icon_label = QLabel("⏱️ Cooldown:")
+        cd_icon_label.setStyleSheet("font-weight: 600; font-size: 12px; color: #E4E4E7;")
+        cd_layout.addWidget(cd_icon_label)
+
+        self.cooldown_combo = QComboBox()
+        self.cooldown_combo.addItem("Disabled (0 min)", 0)
+        self.cooldown_combo.addItem("1 minute", 60)
+        self.cooldown_combo.addItem("2 minutes", 120)
+        self.cooldown_combo.addItem("5 minutes (Default)", 300)
+        self.cooldown_combo.addItem("10 minutes", 600)
+        self.cooldown_combo.addItem("15 minutes", 900)
+        self.cooldown_combo.addItem("30 minutes", 1800)
+        self.cooldown_combo.currentIndexChanged.connect(self._on_cooldown_selected)
+        cd_layout.addWidget(self.cooldown_combo)
+
+        self.cooldown_status_label = QLabel("🟢 Ready for next open")
+        self.cooldown_status_label.setStyleSheet("color: #10B981; font-size: 12px; font-weight: 500; margin-left: 12px;")
+        cd_layout.addWidget(self.cooldown_status_label)
+
+        cd_layout.addStretch()
+
+        main_layout.addWidget(cooldown_bar)
+
         # Summary Metric Cards
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(12)
@@ -350,6 +404,25 @@ class AnalyticsWindow(QWidget):
         self.val_all_time.setText(f"{all_time_opens}")
         self.sub_all_time.setText(f"{all_time_sessions} sessions total")
 
+        # Update Cooldown Bar
+        cd_sec = summary.get("cooldown_seconds", 300)
+        rem_sec = summary.get("cooldown_remaining_seconds", 0)
+        self.cooldown_combo.blockSignals(True)
+        idx = self.cooldown_combo.findData(cd_sec)
+        if idx >= 0:
+            self.cooldown_combo.setCurrentIndex(idx)
+        else:
+            self.cooldown_combo.addItem(f"{cd_sec // 60}m {cd_sec % 60}s", cd_sec)
+            self.cooldown_combo.setCurrentIndex(self.cooldown_combo.count() - 1)
+        self.cooldown_combo.blockSignals(False)
+
+        if rem_sec > 0:
+            self.cooldown_status_label.setText(f"⏳ Cooldown active: {format_duration(rem_sec)} remaining")
+            self.cooldown_status_label.setStyleSheet("color: #F59E0B; font-size: 12px; font-weight: 500; margin-left: 12px;")
+        else:
+            self.cooldown_status_label.setText("🟢 Ready for next open")
+            self.cooldown_status_label.setStyleSheet("color: #10B981; font-size: 12px; font-weight: 500; margin-left: 12px;")
+
         # Update Daily Breakdown table
         self.daily_table.setRowCount(len(daily))
         for row, item in enumerate(daily):
@@ -378,3 +451,20 @@ class AnalyticsWindow(QWidget):
             ack_sec = item.get("duration_to_ack_seconds")
             ack_text = f"{ack_sec:.2f}s" if ack_sec is not None else "Pending / Timeout"
             self.interventions_table.setItem(row, 3, QTableWidgetItem(ack_text))
+
+    def _on_cooldown_selected(self, index: int) -> None:
+        """Handle cooldown duration change from dropdown."""
+        seconds = self.cooldown_combo.currentData()
+        if seconds is not None and self.update_cooldown_callback:
+            label = "Disabled" if seconds == 0 else f"{seconds // 60}m"
+            self.status_label.setText(f"Updating cooldown to {label}...")
+            import threading
+
+            def _task():
+                ok, _, msg = self.update_cooldown_callback(int(seconds))
+                if ok:
+                    logger.info("Cooldown updated to %d seconds.", seconds)
+                else:
+                    logger.warning("Failed to update cooldown: %s", msg)
+
+            threading.Thread(target=_task, daemon=True).start()

@@ -301,3 +301,35 @@ class ConnectionManager(QObject):
                 self.credential_manager.update_tokens(new_access, new_refresh or creds.refresh_token)
                 return self.api_client.get_analytics(new_access)
         return success, data, msg
+
+    def fetch_settings(self) -> Tuple[bool, Optional[dict], str]:
+        """Fetch user settings from server."""
+        creds = self.credential_manager.get_credentials()
+        if not creds or not creds.access_token:
+            return False, None, "Device not paired or missing credentials."
+
+        success, data, msg = self.api_client.get_settings(creds.access_token)
+        if not success and "Unauthorized" in msg and creds.refresh_token:
+            refreshed, new_access, new_refresh = self.api_client.refresh_access_token(
+                creds.device_id, creds.refresh_token
+            )
+            if refreshed and new_access:
+                self.credential_manager.update_tokens(new_access, new_refresh or creds.refresh_token)
+                return self.api_client.get_settings(new_access)
+        return success, data, msg
+
+    def update_cooldown(self, cooldown_seconds: int) -> Tuple[bool, Optional[dict], str]:
+        """Update cooldown duration on server."""
+        creds = self.credential_manager.get_credentials()
+        if not creds or not creds.access_token:
+            return False, None, "Device not paired or missing credentials."
+
+        success, data, msg = self.api_client.update_settings(creds.access_token, cooldown_seconds)
+        if not success and "Unauthorized" in msg and creds.refresh_token:
+            refreshed, new_access, new_refresh = self.api_client.refresh_access_token(
+                creds.device_id, creds.refresh_token
+            )
+            if refreshed and new_access:
+                self.credential_manager.update_tokens(new_access, new_refresh or creds.refresh_token)
+                return self.api_client.update_settings(new_access, cooldown_seconds)
+        return success, data, msg

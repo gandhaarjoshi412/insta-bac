@@ -16,6 +16,8 @@ class AnalyticsSummary(BaseModel):
     total_sessions_all_time: int = Field(default=0, description="All-time Instagram sessions")
     total_interventions_all_time: int = Field(default=0, description="All-time interventions triggered")
     last_opened_at: Optional[datetime] = Field(default=None, description="Timestamp of latest Instagram open")
+    cooldown_seconds: int = Field(default=300, description="Configured intervention cooldown in seconds")
+    cooldown_remaining_seconds: int = Field(default=0, description="Remaining seconds in active cooldown (0 = inactive)")
 
 
 class DailyBreakdown(BaseModel):

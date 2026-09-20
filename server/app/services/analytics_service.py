@@ -13,6 +13,7 @@ from app.models.device import Device
 from app.models.event import EventType, InstagramEvent
 from app.models.intervention import Intervention
 from app.models.session import InstagramSession
+from app.models.user import User
 from app.schemas.analytics import (
     AnalyticsResponse,
     AnalyticsSummary,
@@ -223,6 +224,18 @@ class AnalyticsService:
                 )
             )
 
+        user_stmt = select(User).where(User.id == user_id)
+        user = (await session.execute(user_stmt)).scalar_one_or_none()
+        cooldown_sec = user.cooldown_seconds if user and user.cooldown_seconds is not None else 300
+        cooldown_remaining = 0
+        if user and user.last_intervention_at and cooldown_sec > 0:
+            last_interv = user.last_intervention_at
+            if last_interv.tzinfo is None:
+                last_interv = last_interv.replace(tzinfo=timezone.utc)
+            elapsed = (now - last_interv).total_seconds()
+            if elapsed < cooldown_sec:
+                cooldown_remaining = int(cooldown_sec - elapsed)
+
         summary = AnalyticsSummary(
             total_opens_today=opens_today,
             total_time_today_seconds=time_today_seconds,
@@ -231,6 +244,8 @@ class AnalyticsService:
             total_sessions_all_time=sessions_all_time,
             total_interventions_all_time=interventions_all_time,
             last_opened_at=last_opened_at,
+            cooldown_seconds=cooldown_sec,
+            cooldown_remaining_seconds=cooldown_remaining,
         )
 
         return AnalyticsResponse(

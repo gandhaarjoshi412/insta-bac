@@ -158,6 +158,7 @@ class NoInstaApplication(QObject):
         if self._analytics_window is None:
             self._analytics_window = AnalyticsWindow(
                 fetch_analytics_callback=self.connection_manager.fetch_analytics,
+                update_cooldown_callback=self.connection_manager.update_cooldown,
                 server_url=self.config.server_url,
             )
         self._analytics_window.show()

@@ -16,6 +16,7 @@ from app.api.devices import router as devices_router
 from app.api.events import router as events_router
 from app.api.health import router as health_router
 from app.api.pairing import router as pairing_router
+from app.api.settings import settings_router
 from app.core.config import settings
 from app.websocket.laptop import router as websocket_router
 
@@ -97,4 +98,5 @@ app.include_router(pairing_router)
 app.include_router(devices_router)
 app.include_router(events_router)
 app.include_router(analytics_router)
+app.include_router(settings_router)
 app.include_router(websocket_router)

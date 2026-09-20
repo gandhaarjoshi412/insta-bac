@@ -29,6 +29,7 @@ class APIEndpoints:
     REFRESH_TOKEN = "/api/v1/auth/refresh"
     DEVICE_STATUS = "/api/v1/devices/{device_id}/status"
     ANALYTICS = "/api/v1/analytics"
+    SETTINGS = "/api/v1/settings"
 
 
 
@@ -255,4 +256,43 @@ class APIClient:
                 return False, None, f"Server responded with HTTP {resp.status_code}"
         except Exception as exc:
             logger.error("Error fetching analytics: %s", exc)
+            return False, None, str(exc)
+
+    def get_settings(self, access_token: str) -> Tuple[bool, Optional[dict], str]:
+        """Fetch user settings (cooldown duration, etc.) from server."""
+        if not access_token:
+            return False, None, "No access token provided."
+        try:
+            with self._get_client() as client:
+                resp = client.get(
+                    APIEndpoints.SETTINGS,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if resp.status_code == 200:
+                    return True, resp.json(), "OK"
+                elif resp.status_code == 401:
+                    return False, None, "Unauthorized: token expired or invalid."
+                return False, None, f"Server responded with HTTP {resp.status_code}"
+        except Exception as exc:
+            logger.error("Error fetching settings: %s", exc)
+            return False, None, str(exc)
+
+    def update_settings(self, access_token: str, cooldown_seconds: int) -> Tuple[bool, Optional[dict], str]:
+        """Update user settings (e.g. cooldown duration) on server."""
+        if not access_token:
+            return False, None, "No access token provided."
+        try:
+            with self._get_client() as client:
+                resp = client.put(
+                    APIEndpoints.SETTINGS,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"cooldown_seconds": cooldown_seconds},
+                )
+                if resp.status_code == 200:
+                    return True, resp.json(), "OK"
+                elif resp.status_code == 401:
+                    return False, None, "Unauthorized: token expired or invalid."
+                return False, None, f"Server responded with HTTP {resp.status_code}"
+        except Exception as exc:
+            logger.error("Error updating settings: %s", exc)
             return False, None, str(exc)
