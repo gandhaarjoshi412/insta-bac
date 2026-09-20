@@ -111,6 +111,13 @@ class EventService:
         is_cooldown_active = False
         effective_cooldown = user.cooldown_seconds if user.cooldown_seconds is not None else settings.INSTAGRAM_COOLDOWN_SECONDS
         remaining = 0
+
+        # Check if laptop interventions are explicitly muted (track only mode)
+        if effective_cooldown == -1:
+            await session.commit()
+            await session.refresh(event)
+            return event, False, 0, "Event recorded on server; laptop interventions muted (track only)."
+
         if effective_cooldown > 0 and user.last_intervention_at is not None:
             cooldown_duration = timedelta(seconds=effective_cooldown)
             last_interv = user.last_intervention_at

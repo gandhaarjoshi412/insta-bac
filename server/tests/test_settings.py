@@ -49,3 +49,12 @@ async def test_user_settings_get_and_update(async_client: httpx.AsyncClient):
     )
     assert put_resp.status_code == 200
     assert put_resp.json()["cooldown_seconds"] == 0
+
+    # 6. Set to -1 (Mute Laptop / Track Only mode)
+    mute_resp = await async_client.put(
+        "/api/v1/settings",
+        headers=headers,
+        json={"cooldown_seconds": -1},
+    )
+    assert mute_resp.status_code == 200
+    assert mute_resp.json()["cooldown_seconds"] == -1

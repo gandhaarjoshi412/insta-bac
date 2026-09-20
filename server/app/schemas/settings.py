@@ -7,9 +7,9 @@ class UserSettingsResponse(BaseModel):
     """User preferences including intervention cooldown duration."""
     cooldown_seconds: int = Field(
         default=300,
-        ge=0,
+        ge=-1,
         le=86400,
-        description="Intervention cooldown duration in seconds (0 = disabled)",
+        description="Intervention cooldown duration in seconds (-1 = Mute laptop/track only, 0 = no cooldown)",
     )
 
 
@@ -17,7 +17,7 @@ class UpdateUserSettingsRequest(BaseModel):
     """Request payload to modify user preferences."""
     cooldown_seconds: int = Field(
         ...,
-        ge=0,
+        ge=-1,
         le=86400,
-        description="Intervention cooldown duration in seconds (0 = disabled)",
+        description="Intervention cooldown duration in seconds (-1 = Mute laptop/track only, 0 = no cooldown)",
     )

@@ -261,6 +261,7 @@ class AnalyticsWindow(QWidget):
         self.cooldown_combo.addItem("10 minutes", 600)
         self.cooldown_combo.addItem("15 minutes", 900)
         self.cooldown_combo.addItem("30 minutes", 1800)
+        self.cooldown_combo.addItem("🔇 Mute Laptop (Track Only)", -1)
         self.cooldown_combo.currentIndexChanged.connect(self._on_cooldown_selected)
         cd_layout.addWidget(self.cooldown_combo)
 
@@ -416,9 +417,15 @@ class AnalyticsWindow(QWidget):
             self.cooldown_combo.setCurrentIndex(self.cooldown_combo.count() - 1)
         self.cooldown_combo.blockSignals(False)
 
-        if rem_sec > 0:
+        if cd_sec == -1:
+            self.cooldown_status_label.setText("🔇 Laptop Muted (Track Only - No Interventions)")
+            self.cooldown_status_label.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 500; margin-left: 12px;")
+        elif rem_sec > 0:
             self.cooldown_status_label.setText(f"⏳ Cooldown active: {format_duration(rem_sec)} remaining")
             self.cooldown_status_label.setStyleSheet("color: #F59E0B; font-size: 12px; font-weight: 500; margin-left: 12px;")
+        elif cd_sec == 0:
+            self.cooldown_status_label.setText("⚡ Cooldown disabled (Every open triggers)")
+            self.cooldown_status_label.setStyleSheet("color: #38BDF8; font-size: 12px; font-weight: 500; margin-left: 12px;")
         else:
             self.cooldown_status_label.setText("🟢 Ready for next open")
             self.cooldown_status_label.setStyleSheet("color: #10B981; font-size: 12px; font-weight: 500; margin-left: 12px;")
@@ -456,7 +463,12 @@ class AnalyticsWindow(QWidget):
         """Handle cooldown duration change from dropdown."""
         seconds = self.cooldown_combo.currentData()
         if seconds is not None and self.update_cooldown_callback:
-            label = "Disabled" if seconds == 0 else f"{seconds // 60}m"
+            if seconds == -1:
+                label = "Mute Laptop (Track Only)"
+            elif seconds == 0:
+                label = "Disabled"
+            else:
+                label = f"{seconds // 60}m"
             self.status_label.setText(f"Updating cooldown to {label}...")
             import threading
 

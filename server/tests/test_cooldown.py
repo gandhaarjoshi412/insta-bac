@@ -77,3 +77,56 @@ async def test_five_minute_cooldown_logic(async_client: httpx.AsyncClient):
     assert r3.status_code == 201
     d3 = r3.json()
     assert "cooldown" not in d3["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_mute_laptop_track_only_mode(async_client: httpx.AsyncClient):
+    # Register & Login
+    await async_client.post(
+        "/api/v1/auth/register",
+        json={"email": "trackonly@example.com", "password": "Password123!"},
+    )
+    u_login = await async_client.post(
+        "/api/v1/auth/login",
+        json={"email": "trackonly@example.com", "password": "Password123!"},
+    )
+    user_token = u_login.json()["access_token"]
+
+    # Set user cooldown to -1 (Mute Laptop / Track Only)
+    put_resp = await async_client.put(
+        "/api/v1/settings",
+        headers={"Authorization": f"Bearer {user_token}"},
+        json={"cooldown_seconds": -1},
+    )
+    assert put_resp.status_code == 200
+    assert put_resp.json()["cooldown_seconds"] == -1
+
+    # Pair Android device
+    p_resp = await async_client.post(
+        "/api/v1/pairing/create",
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    code = p_resp.json()["pairing_code"]
+    phone_resp = await async_client.post(
+        "/api/v1/pairing/claim",
+        json={"pairing_code": code, "device_name": "Pixel 8", "device_type": "ANDROID"},
+    )
+    phone_token = phone_resp.json()["access_token"]
+
+    # Post Instagram Open event
+    t0 = datetime(2026, 9, 10, 15, 0, 0, tzinfo=timezone.utc)
+    ev_resp = await async_client.post(
+        "/api/v1/events",
+        headers={"Authorization": f"Bearer {phone_token}"},
+        json={
+            "event_type": "instagram_open",
+            "timestamp": t0.isoformat(),
+            "client_event_id": "evt_mute_1",
+        },
+    )
+    assert ev_resp.status_code == 201
+    data = ev_resp.json()
+    # Verified: event is recorded on server, but intervention is NOT triggered to laptop
+    assert data["intervention_triggered"] is False
+    assert data["eligible_laptops_count"] == 0
+    assert "muted" in data["message"].lower()
